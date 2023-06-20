@@ -1,23 +1,96 @@
-import initWasm from "@vlcn.io/crsqlite-wasm";
-import wasmUrl from "@vlcn.io/crsqlite-wasm/crsqlite.wasm?url";
+import workerUrl from "./service-worker.js?url";
 
-const sqlite = await initWasm(() => wasmUrl);
-const db = await sqlite.open(":memory:");
+navigator.serviceWorker
+  .register(workerUrl, {
+    scope: "./src/",
+  })
+  .then((registration) => {
+    console.log("registration..");
+    let serviceWorker;
+    if (registration.installing) {
+      serviceWorker = registration.installing;
+      document.querySelector("#kind")!.textContent = "installing";
+    } else if (registration.waiting) {
+      serviceWorker = registration.waiting;
+      document.querySelector("#kind")!.textContent = "waiting";
+    } else if (registration.active) {
+      serviceWorker = registration.active;
+      document.querySelector("#kind")!.textContent = "active";
+    }
+    if (serviceWorker) {
+      console.log(serviceWorker.state);
+      serviceWorker.addEventListener("statechange", (e) => {
+        console.log(e);
+        // console.log(e.target?.state);
+      });
+      console.log("posting msg to service worker from main thread");
+      serviceWorker.postMessage("Hello");
+    }
+  })
+  .catch((error) => {
+    // Something went wrong during registration. The service-worker.js file
+    // might be unavailable or contain a syntax error.
+  });
 
-await db.exec("CREATE TABLE foo (a primary key, b);");
+const container = navigator.serviceWorker;
 
-db.onUpdate(() => {
-  console.log("received update callback!");
+container.onmessage = (msg) => {
+  console.log("Main thread got this from service worker:", msg);
+};
+
+navigator.serviceWorker.ready.then((registration) => {
+  console.log("another attempt to post a message");
+  navigator.serviceWorker.controller!.postMessage({
+    type: "MESSAGE_IDENTIFIER",
+  });
 });
 
-try {
-  await db.tx(async (tx) => {
-    console.log("insert 1");
-    await tx.exec("INSERT INTO foo (1, 2);");
-    console.log("insert 2");
-    await tx.exec("INSERT INTO foo (2, 3);");
-  });
-} catch (e) {
-  console.log("wtf");
-  console.log(e);
-}
+/**
+ * Algorithm:
+ * 1. Each tab spawns a dedicated worker
+ * 2. Each dedicated worker waits for db open events
+ * 3. On open event, try to acquire a weblock for the given db name.
+ *
+ * We need some sort of central "opener" to coordinate message port passing.
+ * The DB could already be open in a different tab is the issue and we need to find it if so.
+ *
+ * We attempt to open the DB by:
+ * 1. Acquiring the weblock for it
+ * 2. Setting up a migration listener
+ * 3. Broadcasting a request for msg ports
+ *
+ * If we get the lock we notify ourselves thru the same listener.
+ *
+ * Main tab:
+ * 1. Create message channel
+ * 2. Start worker
+ * 3. Send worker other end of message channel
+ * 4. Worker:
+ *    1. Registers for DB Open event message against a broadcast channel
+ *    2. On receipt, tries to claim a weblock for that db name.
+ * 2. On DB Open:
+ *    1. Register a listener for DB open event with our worker
+ *    2. Broadcast event
+ *
+ * Workers all need to ping the service worker. Workers would pass around msg ports depending on lock acquisition.
+ * Well if worker dies msg ports die with it.
+ *
+ * ServiceWorker is the pub-sub channel.
+ *
+ * Tab tells ServiceWorker, SW tells workers when a new DB is requested. Worker that "gets that db" or "has that db" responds to SW.
+ * This response to SW includes a message port for each interested tab.
+ * SW sends these ports back out to all the registered tabs...
+ *
+ * Maybe need a bit more.
+ *
+ * Tab -ask for db-> SW -ask for db-> Workers
+ *
+ * Worker -has db-> SW -db avail, worker num-> Tabs
+ *
+ * Tab -msg port for db, worker num-> SW -msg port-> Worker
+ *
+ * SW isn't intended to be stateful.. but if it has message channels set up, does it ever die?
+ * It would seem it should not.
+ *
+ * If not, we can do something like: https://github.com/rhashimoto/wa-sqlite/blob/master/demo/SharedService/SharedService_SharedWorker.js
+ */
