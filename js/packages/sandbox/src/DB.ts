@@ -1,6 +1,6 @@
 import serviceWorkerUrl from "./service-worker.js?url";
 
-const registrationPromise = navigator.serviceWorker
+const swRegistrationPromise = navigator.serviceWorker
   .register(serviceWorkerUrl, {
     scope: "/src/@vlcn.io_db-coordinator",
   })
@@ -30,21 +30,23 @@ type CoordinateMsg =
     };
 
 class Connection {
-  #bc = new BroadcastChannel("connection-coordinate");
+  #bc = new BroadcastChannel("@vlcn.io/connection-coordinate");
   #usingWorker: WorkerId | null = null;
   #messageChannel: MessageChannel | null = null;
   #swRegistration: ServiceWorkerRegistration | null = null;
+  #sw: ServiceWorker | null = null;
 
   constructor(private filename: string) {
     this.#bc.onmessage = this.#broadcastReceived;
   }
 
   async open() {
-    this.#swRegistration = await registrationPromise;
+    this.#swRegistration = await swRegistrationPromise;
     this.#swRegistration.addEventListener;
-    console.log("Installing?", this.#swRegistration.installing);
-    console.log("Active?", this.#swRegistration.active);
-    console.log("Waiting?", this.#swRegistration.waiting);
+    this.#sw =
+      this.#swRegistration.installing ||
+      this.#swRegistration.active ||
+      this.#swRegistration.waiting;
     // Workers will process this message,
     // try to acquire the weblock for the filename,
     // if successful (or already hold), report that it is available

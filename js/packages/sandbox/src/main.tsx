@@ -1,7 +1,10 @@
 import DB from "./DB";
+import sharedWorkerUrl from "./shared-worker.js?url";
 
 const db = DB.open("a-file");
 
+console.log("start sared");
+const sharedWorker = new SharedWorker(sharedWorkerUrl, { type: "module" });
 /**
  * Algorithm:
  * 1. Each tab spawns a dedicated worker

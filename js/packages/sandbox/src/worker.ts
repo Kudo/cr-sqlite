@@ -1,5 +1,7 @@
 import workerUrl from "./service-worker.js?url";
 
+// navigator.serviceWorker.getRegistration()
+
 // const container = navigator.serviceWorker;
 // container.onmessage = (msg) => {
 //   console.log("Dedicated worker got msg from SW", msg);
