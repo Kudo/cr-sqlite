@@ -1,17 +1,16 @@
-// TODO: supposedly ServiceWorkers can be killed arbitrarily?
-// If that is the case we would need to make this stateless by passing all needed information
-// in messages.
-/*
-If we passed everything..
+self.addEventListener("install", function (event) {
+  (event as any).waitUntil(Promise.resolve());
+});
 
-Tab asks SW for DB.
-SW would need some state for a short duration to map back who requested the DB when getting a response from who
-has the DB.
+self.addEventListener("activate", (event) => {
+  // @ts-ignore
+  event.waitUntil(clients.claim());
+});
 
-*/
 const mapNameToProviderPort = new Map<string, MessagePort>();
 
 onmessage = (event) => {
+  console.log("sw got a msg", event);
   if (event.data.type === "worker_connect") {
     onWorkerConnected(event.ports[0]);
   }
@@ -47,3 +46,5 @@ function onWorkerConnected(workerPort: MessagePort) {
     }
   };
 }
+
+// Test that we can actually pass a message port from tab to service worker to worker first.

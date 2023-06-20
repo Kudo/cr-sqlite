@@ -1,49 +1,6 @@
-import workerUrl from "./service-worker.js?url";
+import DB from "./DB";
 
-navigator.serviceWorker
-  .register(workerUrl, {
-    scope: "./src/",
-  })
-  .then((registration) => {
-    console.log("registration..");
-    let serviceWorker;
-    if (registration.installing) {
-      serviceWorker = registration.installing;
-      document.querySelector("#kind")!.textContent = "installing";
-    } else if (registration.waiting) {
-      serviceWorker = registration.waiting;
-      document.querySelector("#kind")!.textContent = "waiting";
-    } else if (registration.active) {
-      serviceWorker = registration.active;
-      document.querySelector("#kind")!.textContent = "active";
-    }
-    if (serviceWorker) {
-      console.log(serviceWorker.state);
-      serviceWorker.addEventListener("statechange", (e) => {
-        console.log(e);
-        // console.log(e.target?.state);
-      });
-      console.log("posting msg to service worker from main thread");
-      serviceWorker.postMessage("Hello");
-    }
-  })
-  .catch((error) => {
-    // Something went wrong during registration. The service-worker.js file
-    // might be unavailable or contain a syntax error.
-  });
-
-const container = navigator.serviceWorker;
-
-container.onmessage = (msg) => {
-  console.log("Main thread got this from service worker:", msg);
-};
-
-navigator.serviceWorker.ready.then((registration) => {
-  console.log("another attempt to post a message");
-  navigator.serviceWorker.controller!.postMessage({
-    type: "MESSAGE_IDENTIFIER",
-  });
-});
+const db = DB.open("a-file");
 
 /**
  * Algorithm:
