@@ -10,8 +10,7 @@
 // NB: crsql_quoteConcat
 #define QC_DELIM '|'
 
-#define DELETE_CID_SENTINEL "__crsql_del"
-#define PKS_ONLY_CID_SENTINEL "__crsql_pko"
+#define CAUSAL_LENGTH_COL "__crsql_cl"
 
 #define CRR_SPACE 0
 #define USER_SPACE 1

@@ -582,10 +582,8 @@ int crsql_compactPostAlter(sqlite3 *db, const char *tblName,
     // First delete entries that no longer have a column
     zSql = sqlite3_mprintf(
         "DELETE FROM \"%w__crsql_clock\" WHERE \"__crsql_col_name\" NOT IN "
-        "(SELECT name FROM pragma_table_info(%Q) UNION SELECT '%s' UNION "
-        "SELECT "
-        "'%s')",
-        tblName, tblName, DELETE_CID_SENTINEL, PKS_ONLY_CID_SENTINEL);
+        "(SELECT name FROM pragma_table_info(%Q) UNION SELECT '%s')",
+        tblName, tblName, CAUSAL_LENGTH_COL);
     rc = sqlite3_exec(db, zSql, 0, 0, errmsg);
     sqlite3_free(zSql);
     if (rc != SQLITE_OK) {
@@ -600,9 +598,9 @@ int crsql_compactPostAlter(sqlite3 *db, const char *tblName,
     sqlite3_str_appendf(
         pDynStr,
         "DELETE FROM \"%w__crsql_clock\" WHERE __crsql_col_name != "
-        "'__crsql_del' AND NOT EXISTS (SELECT 1 FROM "
+        "'%s' AND NOT EXISTS (SELECT 1 FROM "
         "\"%w\" WHERE ",
-        tblName, tblName);
+        tblName, CAUSAL_LENGTH_COL, tblName);
     // get table info
     rc = crsql_ensureTableInfosAreUpToDate(db, pExtData, errmsg);
     if (rc != SQLITE_OK) {

@@ -237,7 +237,7 @@ static void testDeleteThatDoesNotChangeAnything() {
   rc += sqlite3_exec(db, "BEGIN", 0, 0, 0);
   rc += sqlite3_exec(db,
                      "INSERT INTO crsql_changes VALUES ('foo', 1, "
-                     "'__crsql_del', NULL, 1, 2, NULL)",
+                     "'__crsql_cl', NULL, 2, 2, NULL)",
                      0, 0, &err);
   sqlite3_prepare_v2(db, "SELECT crsql_rows_impacted()", -1, &pStmt, 0);
   sqlite3_step(pStmt);
@@ -262,7 +262,7 @@ static void testDelete() {
   rc += sqlite3_exec(db, "BEGIN", 0, 0, 0);
   rc += sqlite3_exec(db,
                      "INSERT INTO crsql_changes VALUES ('foo', 1, "
-                     "'__crsql_del', NULL, 1, 2, NULL)",
+                     "'__crsql_cl', NULL, 2, 2, NULL)",
                      0, 0, &err);
   sqlite3_prepare_v2(db, "SELECT crsql_rows_impacted()", -1, &pStmt, 0);
   sqlite3_step(pStmt);

@@ -89,8 +89,7 @@ struct crsql_Changes_vtab {
  * changesOpen and released in changesCrsrFinalize
  */
 #define ROW_TYPE_UPDATE 0
-#define ROW_TYPE_DELETE 1
-#define ROW_TYPE_PKONLY 2
+#define ROW_TYPE_CAUSAL_LENGTH 1
 
 typedef struct crsql_Changes_cursor crsql_Changes_cursor;
 struct crsql_Changes_cursor {

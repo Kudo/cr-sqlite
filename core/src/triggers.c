@@ -41,18 +41,12 @@ int crsql_createInsertTrigger(sqlite3 *db, crsql_TableInfo *tableInfo,
 
 char *crsql_insertTriggerQuery(crsql_TableInfo *tableInfo, char *pkList,
                                char *pkNewList) {
-  const int length = tableInfo->nonPksLen == 0 ? 1 : tableInfo->nonPksLen;
+  const int length = tableInfo->nonPksLen + 1;
   char **subTriggers = sqlite3_malloc(length * sizeof(char *));
   char *joinedSubTriggers;
 
-  // We need a CREATE_SENTINEL to stand in for the create event so we can
-  // replicate PKs If we have a create sentinel how will we insert the created
-  // rows without a requirement of nullability on every column? Keep some
-  // event data for create that represents the initial state of the row?
-  // Future improvement.
-  if (tableInfo->nonPksLen == 0) {
-    subTriggers[0] = sqlite3_mprintf(
-        "INSERT INTO \"%s__crsql_clock\" (\
+  subTriggers[0] = sqlite3_mprintf(
+      "INSERT INTO \"%s__crsql_clock\" (\
         %s,\
         __crsql_col_name,\
         __crsql_col_version,\
@@ -71,8 +65,8 @@ char *crsql_insertTriggerQuery(crsql_TableInfo *tableInfo, char *pkList,
         __crsql_db_version = crsql_nextdbversion(),\
         __crsql_seq = crsql_get_seq() - 1,\
         __crsql_site_id = NULL;\n",
-        tableInfo->tblName, pkList, pkNewList, PKS_ONLY_CID_SENTINEL);
-  }
+      tableInfo->tblName, pkList, pkNewList, CAUSAL_LENGTH_COL);
+
   for (int i = 0; i < tableInfo->nonPksLen; ++i) {
     subTriggers[i] = sqlite3_mprintf(
         "INSERT INTO \"%s__crsql_clock\" (\
@@ -123,7 +117,7 @@ int crsql_createUpdateTrigger(sqlite3 *db, crsql_TableInfo *tableInfo,
   char *pkList = 0;
   char *pkNewList = 0;
   int rc = SQLITE_OK;
-  const int length = tableInfo->nonPksLen == 0 ? 1 : tableInfo->nonPksLen;
+  const int length = tableInfo->nonPksLen + 1;
   char **subTriggers = sqlite3_malloc(length * sizeof(char *));
   char *joinedSubTriggers;
 
@@ -141,9 +135,8 @@ int crsql_createUpdateTrigger(sqlite3 *db, crsql_TableInfo *tableInfo,
   //
   // TODO: Do we not also need to record a creation event
   // if a pk was changed for a non pk only table?
-  if (tableInfo->nonPksLen == 0) {
-    subTriggers[0] = sqlite3_mprintf(
-        "INSERT INTO \"%s__crsql_clock\" (\
+  subTriggers[0] = sqlite3_mprintf(
+      "INSERT INTO \"%s__crsql_clock\" (\
         %s,\
         __crsql_col_name,\
         __crsql_col_version,\
@@ -162,10 +155,9 @@ int crsql_createUpdateTrigger(sqlite3 *db, crsql_TableInfo *tableInfo,
         __crsql_db_version = crsql_nextdbversion(),\
         __crsql_seq = crsql_get_seq() - 1,\
         __crsql_site_id = NULL;\n",
-        tableInfo->tblName, pkList, pkNewList, PKS_ONLY_CID_SENTINEL);
-  }
+      tableInfo->tblName, pkList, pkNewList, CAUSAL_LENGTH_COL);
 
-  for (int i = 0; i < tableInfo->nonPksLen; ++i) {
+  for (int i = 1; i < tableInfo->nonPksLen; ++i) {
     // updates are conditionally inserted on the new value not being
     // the same as the old value.
     subTriggers[i] = sqlite3_mprintf(
@@ -244,7 +236,7 @@ char *crsql_deleteTriggerQuery(crsql_TableInfo *tableInfo) {
       ) SELECT \
         %s,\
         %Q,\
-        1,\
+        2,\
         crsql_nextdbversion(),\
         crsql_increment_and_get_seq(),\
         NULL\
@@ -254,10 +246,11 @@ char *crsql_deleteTriggerQuery(crsql_TableInfo *tableInfo) {
       __crsql_seq = crsql_get_seq() - 1,\
       __crsql_site_id = NULL;\
       \
-      DELETE FROM \"%w__crsql_clock\" WHERE crsql_internal_sync_bit() = 0 AND %s AND __crsql_col_name != '__crsql_del';\
+      DELETE FROM \"%w__crsql_clock\" WHERE crsql_internal_sync_bit() = 0 AND %s AND __crsql_col_name != '%s';\
       END; ",
       tableInfo->tblName, tableInfo->tblName, tableInfo->tblName, pkList,
-      pkOldList, DELETE_CID_SENTINEL, tableInfo->tblName, pkWhereList);
+      pkOldList, CAUSAL_LENGTH_COL, tableInfo->tblName, pkWhereList,
+      CAUSAL_LENGTH_COL);
 
   sqlite3_free(pkList);
   sqlite3_free(pkOldList);

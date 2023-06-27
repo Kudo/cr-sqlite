@@ -206,11 +206,8 @@ static int changesNext(sqlite3_vtab_cursor *cur) {
     return SQLITE_ERROR;
   }
 
-  if (strcmp(DELETE_CID_SENTINEL, cid) == 0) {
-    pCur->rowType = ROW_TYPE_DELETE;
-    return SQLITE_OK;
-  } else if (strcmp(PKS_ONLY_CID_SENTINEL, cid) == 0) {
-    pCur->rowType = ROW_TYPE_PKONLY;
+  if (strcmp(CAUSAL_LENGTH_COL, cid) == 0) {
+    pCur->rowType = ROW_TYPE_CAUSAL_LENGTH;
     return SQLITE_OK;
   } else {
     pCur->rowType = ROW_TYPE_UPDATE;
@@ -293,10 +290,8 @@ static int changesColumn(
       }
       break;
     case CHANGES_SINCE_VTAB_CID:
-      if (pCur->rowType == ROW_TYPE_PKONLY) {
-        sqlite3_result_text(ctx, PKS_ONLY_CID_SENTINEL, -1, SQLITE_STATIC);
-      } else if (pCur->rowType == ROW_TYPE_DELETE || pCur->pRowStmt == 0) {
-        sqlite3_result_text(ctx, DELETE_CID_SENTINEL, -1, SQLITE_STATIC);
+      if (pCur->rowType == ROW_TYPE_CAUSAL_LENGTH) {
+        sqlite3_result_text(ctx, CAUSAL_LENGTH_COL, -1, SQLITE_STATIC);
       } else {
         sqlite3_result_value(ctx,
                              sqlite3_column_value(pCur->pChangesStmt, CID));

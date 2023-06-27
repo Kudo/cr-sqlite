@@ -97,8 +97,8 @@ int crsql_checkForLocalDelete(sqlite3 *db, const char *tblName,
   char *zSql = sqlite3_mprintf(
       "SELECT count(*) FROM \"%s__crsql_clock\" WHERE %s AND "
       "__crsql_col_name "
-      "= %Q",
-      tblName, pkWhereList, DELETE_CID_SENTINEL);
+      "= %Q AMD __crsql_col_version % 2 == 0",
+      tblName, pkWhereList, CAUSAL_LENGTH_COL);
   sqlite3_stmt *pStmt;
   int rc = sqlite3_prepare(db, zSql, -1, &pStmt, 0);
   sqlite3_free(zSql);
@@ -195,7 +195,7 @@ sqlite3_int64 crsql_mergePkOnlyInsert(sqlite3 *db, crsql_TableInfo *tblInfo,
 
   // TODO: if insert was ignored, no reason to change clock
   return crsql_setWinnerClock(db, tblInfo, pkIdentifiers, pkValsStr,
-                              PKS_ONLY_CID_SENTINEL, remoteColVersion,
+                              CAUSAL_LENGTH_COL, remoteColVersion,
                               remoteDbVersion, remoteSiteId, remoteSiteIdLen);
 }
 
@@ -221,7 +221,7 @@ sqlite3_int64 crsql_mergeDelete(sqlite3 *db, crsql_TableInfo *tblInfo,
   }
 
   return crsql_setWinnerClock(db, tblInfo, pkIdentifiers, pkValsStr,
-                              DELETE_CID_SENTINEL, remoteColVersion,
+                              CAUSAL_LENGTH_COL, remoteColVersion,
                               remoteDbVersion, remoteSiteId, remoteSiteIdLen);
 }
 
@@ -301,6 +301,8 @@ int crsql_mergeInsert(sqlite3_vtab *pVTab, int argc, sqlite3_value **argv,
     return SQLITE_ERROR;
   }
 
+  // need to check on the causal length col_versions
+  // we need to check if we deleted the row already in the given pass?
   int isDelete = strcmp(DELETE_CID_SENTINEL, insertColName) == 0;
   int isPkOnly = strcmp(PKS_ONLY_CID_SENTINEL, insertColName) == 0;
 
@@ -313,6 +315,7 @@ int crsql_mergeInsert(sqlite3_vtab *pVTab, int argc, sqlite3_value **argv,
   }
 
   rc = crsql_checkForLocalDelete(db, tblInfo->tblName, pkWhereList);
+  // Delete doesn't win anymore. We need to check.
   if (rc == DELETED_LOCALLY) {
     rc = SQLITE_OK;
     // delete wins. we're all done.

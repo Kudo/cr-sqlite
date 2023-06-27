@@ -180,10 +180,11 @@ def test_delete_sentinels_not_lost():
     c = setup_alter_test()
     c.execute("DELETE FROM todo WHERE id = 1;")
     c.commit()
-    changes = c.execute(changes_query).fetchall()
+    changes = c.execute(
+        "SELECT [table], [pk], [cid], [val], [col_version] FROM crsql_changes").fetchall()
 
     # starting off correctly
-    assert (changes == [('todo', '1', '__crsql_del', None)])
+    assert (changes == [('todo', '1', '__crsql_cl', None, 2)])
 
     c.execute("SELECT crsql_begin_alter('todo');")
     c.execute("ALTER TABLE todo RENAME name TO task;")
@@ -191,7 +192,7 @@ def test_delete_sentinels_not_lost():
     c.commit()
 
     changes = c.execute(changes_query).fetchall()
-    assert (changes == [('todo', '1', '__crsql_del', None)])
+    assert (changes == [('todo', '1', '__crsql_cl', None, 2)])
 
 
 def test_pk_only_sentinels():

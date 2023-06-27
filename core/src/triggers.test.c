@@ -73,14 +73,14 @@ static void testDeleteTriggerQuery() {
           "ON \"foo\"    BEGIN      INSERT INTO \"foo__crsql_clock\" (        "
           "\"a\",        __crsql_col_name,        __crsql_col_version,        "
           "__crsql_db_version,        __crsql_seq,        __crsql_site_id      "
-          ") SELECT         OLD.\"a\",        '__crsql_del',        1,        "
+          ") SELECT         OLD.\"a\",        '__crsql_cl',        2,        "
           "crsql_nextdbversion(),        crsql_increment_and_get_seq(),        "
           "NULL      WHERE crsql_internal_sync_bit() = 0 ON CONFLICT DO UPDATE "
           "SET      __crsql_col_version = __crsql_col_version + 1,      "
           "__crsql_db_version = crsql_nextdbversion(),      __crsql_seq = "
           "crsql_get_seq() - 1,      __crsql_site_id = NULL;         "
           "   DELETE FROM \"foo__crsql_clock\" WHERE crsql_internal_sync_bit() "
-          "= 0 AND \"a\" = OLD.\"a\" AND __crsql_col_name != '__crsql_del';    "
+          "= 0 AND \"a\" = OLD.\"a\" AND __crsql_col_name != '__crsql_cl';    "
           "  END; ",
           query) == 0);
 
