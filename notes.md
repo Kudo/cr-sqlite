@@ -1,3 +1,10 @@
+# causal length
+
+How shall we extract the causal length in our `changesNext`?
+
+Causal length .. can we just add it as a `SELECT ..` inside of the normal changes statement?
+E.g., `SELECT *, (SELECT __crsql_col_version FROM x__crsql_clock WHERE pk_where_conditions) AS causal_length FROM ...`
+
 # in-order in-tx + cursoring
 
 - clock tbls without rowid
