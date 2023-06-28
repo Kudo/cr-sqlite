@@ -301,10 +301,17 @@ int crsql_mergeInsert(sqlite3_vtab *pVTab, int argc, sqlite3_value **argv,
     return SQLITE_ERROR;
   }
 
-  // need to check on the causal length col_versions
-  // we need to check if we deleted the row already in the given pass?
-  int isDelete = strcmp(DELETE_CID_SENTINEL, insertColName) == 0;
-  int isPkOnly = strcmp(PKS_ONLY_CID_SENTINEL, insertColName) == 0;
+  int isDelete = 0;
+  int isPkOnly = 0;
+  if (strcmp(CAUSAL_LENGTH_COL, insertColName) == 0) {
+    if (insertColVrsn % 2 == 0) {
+      // delete
+      isDelete = 1;
+    } else {
+      // pk only insertion
+      isPkOnly = 1;
+    }
+  }
 
   char *pkWhereList = crsql_extractWhereList(tblInfo->pks, tblInfo->pksLen,
                                              (const char *)insertPks);
@@ -314,6 +321,11 @@ int crsql_mergeInsert(sqlite3_vtab *pVTab, int argc, sqlite3_value **argv,
     return SQLITE_ERROR;
   }
 
+  // This should now only pass if the local delete has a > causal length than
+  // the current insertion.
+  // Insertion merge thus must include the causal length. This is a new vtab
+  // column. Not hidden given it should always be included in changesets.
+  // Can we self join to add it to each row?
   rc = crsql_checkForLocalDelete(db, tblInfo->tblName, pkWhereList);
   // Delete doesn't win anymore. We need to check.
   if (rc == DELETED_LOCALLY) {
