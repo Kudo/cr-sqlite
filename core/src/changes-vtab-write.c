@@ -93,12 +93,12 @@ int crsql_didCidWin(sqlite3 *db, const unsigned char *localSiteId,
 
 #define DELETED_LOCALLY -1
 int crsql_checkForLocalDelete(sqlite3 *db, const char *tblName,
-                              char *pkWhereList) {
+                              char *pkWhereList, sqlite3_int64 causalLength) {
   char *zSql = sqlite3_mprintf(
       "SELECT count(*) FROM \"%s__crsql_clock\" WHERE %s AND "
       "__crsql_col_name "
-      "= %Q AMD __crsql_col_version % 2 == 0",
-      tblName, pkWhereList, CAUSAL_LENGTH_COL);
+      "= %Q AND __crsql_col_version % 2 == 0 AND __crsql_col_version > %lld",
+      tblName, pkWhereList, CAUSAL_LENGTH_COL, causalLength);
   sqlite3_stmt *pStmt;
   int rc = sqlite3_prepare(db, zSql, -1, &pStmt, 0);
   sqlite3_free(zSql);
@@ -273,6 +273,8 @@ int crsql_mergeInsert(sqlite3_vtab *pVTab, int argc, sqlite3_value **argv,
       sqlite3_value_int64(argv[2 + CHANGES_SINCE_VTAB_COL_VRSN]);
   sqlite3_int64 insertDbVrsn =
       sqlite3_value_int64(argv[2 + CHANGES_SINCE_VTAB_DB_VRSN]);
+  sqlite3_int64 causalLength =
+      sqlite3_value_int64(argv[2 + CHANGES_SINCE_VTAB_CAUSAL_LENGTH]);
 
   int insertSiteIdLen =
       sqlite3_value_bytes(argv[2 + CHANGES_SINCE_VTAB_SITE_ID]);
@@ -326,7 +328,8 @@ int crsql_mergeInsert(sqlite3_vtab *pVTab, int argc, sqlite3_value **argv,
   // Insertion merge thus must include the causal length. This is a new vtab
   // column. Not hidden given it should always be included in changesets.
   // Can we self join to add it to each row?
-  rc = crsql_checkForLocalDelete(db, tblInfo->tblName, pkWhereList);
+  rc = crsql_checkForLocalDelete(db, tblInfo->tblName, pkWhereList,
+                                 causalLength);
   // Delete doesn't win anymore. We need to check.
   if (rc == DELETED_LOCALLY) {
     rc = SQLITE_OK;
