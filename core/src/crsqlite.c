@@ -602,7 +602,7 @@ int crsql_compactPostAlter(sqlite3 *db, const char *tblName,
     sqlite3_str_appendf(
         pDynStr,
         "DELETE FROM \"%w__crsql_clock\" WHERE __crsql_col_name != "
-        "'__crsql_del' AND NOT EXISTS (SELECT 1 FROM "
+        "'__crsql_cl' AND NOT EXISTS (SELECT 1 FROM "
         "\"%w\" WHERE ",
         tblName, tblName);
     // get table info

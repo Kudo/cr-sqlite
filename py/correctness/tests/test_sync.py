@@ -120,7 +120,7 @@ def test_delete():
     siteid = None
     # Deletes are marked with a sentinel id
     assert (rows == [('component', b'\x01\x09\x01',
-            '__crsql_del', None, 1, 2, siteid)])
+            '__crsql_cl', None, 2, 2, siteid)])
 
     db.execute("DELETE FROM component")
     db.execute("DELETE FROM deck")
@@ -131,15 +131,15 @@ def test_delete():
     # TODO: should deletes not get a proper version? Would be better for ordering and chunking replications
     assert (rows == [('user', b'\x01\x09\x01', 'name', "Javi", 1, 1, None),
                      ('component', b'\x01\x09\x01',
-                      '__crsql_del', None, 1, 2, None),
+                      '__crsql_cl', None, 2, 2, None),
                      ('component', b'\x01\x09\x02',
-                      '__crsql_del', None, 1, 3, None),
+                      '__crsql_cl', None, 2, 3, None),
                      ('component', b'\x01\x09\x03',
-                      '__crsql_del', None, 1, 3, None),
-                     ('deck', b'\x01\x09\x01', '__crsql_del', None, 1, 3, None),
-                     ('slide', b'\x01\x09\x01', '__crsql_del', None, 1, 3, None),
-                     ('slide', b'\x01\x09\x02', '__crsql_del', None, 1, 3, None),
-                     ('slide', b'\x01\x09\x03', '__crsql_del', None, 1, 3, None)])
+                      '__crsql_cl', None, 2, 3, None),
+                     ('deck', b'\x01\x09\x01', '__crsql_cl', None, 2, 3, None),
+                     ('slide', b'\x01\x09\x01', '__crsql_cl', None, 2, 3, None),
+                     ('slide', b'\x01\x09\x02', '__crsql_cl', None, 2, 3, None),
+                     ('slide', b'\x01\x09\x03', '__crsql_cl', None, 2, 3, None)])
 
     # test insert
 

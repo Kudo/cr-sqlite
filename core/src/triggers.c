@@ -254,7 +254,7 @@ char *crsql_deleteTriggerQuery(crsql_TableInfo *tableInfo) {
       __crsql_seq = crsql_get_seq() - 1,\
       __crsql_site_id = NULL;\
       \
-      DELETE FROM \"%w__crsql_clock\" WHERE crsql_internal_sync_bit() = 0 AND %s AND __crsql_col_name != '__crsql_del';\
+      DELETE FROM \"%w__crsql_clock\" WHERE crsql_internal_sync_bit() = 0 AND %s AND __crsql_col_name != '__crsql_cl';\
       END; ",
       tableInfo->tblName, tableInfo->tblName, tableInfo->tblName, pkList,
       pkOldList, DELETE_CID_SENTINEL, tableInfo->tblName, pkWhereList);
