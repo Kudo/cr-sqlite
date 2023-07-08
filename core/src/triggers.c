@@ -123,27 +123,19 @@ int crsql_createUpdateTrigger(sqlite3 *db, crsql_TableInfo *tableInfo,
   char *pkList = 0;
   char *pkNewList = 0;
   int rc = SQLITE_OK;
-  const int length = tableInfo->nonPksLen == 0 ? 1 : tableInfo->nonPksLen;
+  const int length = tableInfo->nonPksLen + 1;
   char **subTriggers = sqlite3_malloc(length * sizeof(char *));
   char *joinedSubTriggers;
 
   pkList = crsql_asIdentifierList(tableInfo->pks, tableInfo->pksLen, 0);
   pkNewList = crsql_asIdentifierList(tableInfo->pks, tableInfo->pksLen, "NEW.");
 
-  // If we updated a table that _only_ has primary key columns
-  // this is the same thing as
-  // a
-  // 1. delete of the old row
-  // followed by
-  // 2. create of a new row
-  // SQLite already calls the delete trigger for the old row
-  // for case 1 so that's covered.
-  //
-  // TODO: Do we not also need to record a creation event
-  // if a pk was changed for a non pk only table?
-  if (tableInfo->nonPksLen == 0) {
-    subTriggers[0] = sqlite3_mprintf(
-        "INSERT INTO \"%s__crsql_clock\" (\
+  // TODO: we'd technically need to delete the old thing if we updated
+  // the pk...
+  // TODO: we can do this better if we change the triggers
+  // to be column specific triggers.
+  subTriggers[0] = sqlite3_mprintf(
+      "INSERT INTO \"%s__crsql_clock\" (\
         %s,\
         __crsql_col_name,\
         __crsql_col_version,\
@@ -158,14 +150,13 @@ int crsql_createUpdateTrigger(sqlite3 *db, crsql_TableInfo *tableInfo,
         crsql_increment_and_get_seq(),\
         NULL\
       WHERE crsql_internal_sync_bit() = 0 ON CONFLICT DO UPDATE SET\
-        __crsql_col_version = __crsql_col_version + 1,\
-        __crsql_db_version = crsql_nextdbversion(),\
-        __crsql_seq = crsql_get_seq() - 1,\
-        __crsql_site_id = NULL;\n",
-        tableInfo->tblName, pkList, pkNewList, PKS_ONLY_CID_SENTINEL);
-  }
+        __crsql_col_version = CASE WHEN __crsql_col_version % 2 == 0 THEN __crsql_col_version + 1 ELSE __crsql_col_version END,\
+        __crsql_db_version = CASE WHEN __crsql_col_version % 2 == 0 THEN crsql_nextdbversion() ELSE crsql_dbversion() END,\
+        __crsql_seq = CASE WHEN __crsql_col_version % 2 == 0 THEN crsql_get_seq() - 1 ELSE __crsql_seq,\
+        __crsql_site_id = CASE WHEN __crsql_col_version % 2 == 0 THEN NULL ELSE __crsql_site_id;\n",
+      tableInfo->tblName, pkList, pkNewList, CL_CID_SENTINEL);
 
-  for (int i = 0; i < tableInfo->nonPksLen; ++i) {
+  for (int i = 1; i < tableInfo->nonPksLen; ++i) {
     // updates are conditionally inserted on the new value not being
     // the same as the old value.
     subTriggers[i] = sqlite3_mprintf(
@@ -176,7 +167,7 @@ int crsql_createUpdateTrigger(sqlite3 *db, crsql_TableInfo *tableInfo,
         __crsql_db_version,\
         __crsql_seq,\
         __crsql_site_id\
-      ) SELECT %s, %Q, 1, crsql_nextdbversion(), crsql_increment_and_get_seq(), NULL WHERE crsql_internal_sync_bit() = 0 AND NEW.\"%w\" IS NOT OLD.\"%w\"\
+      ) SELECT %s, %Q, 1, crsql_nextdbversion(), crsql_get_seq() - 1, NULL WHERE crsql_internal_sync_bit() = 0 AND NEW.\"%w\" IS NOT OLD.\"%w\"\
       ON CONFLICT DO UPDATE SET\
         __crsql_col_version = __crsql_col_version + 1,\
         __crsql_db_version = crsql_nextdbversion(),\
@@ -244,7 +235,7 @@ char *crsql_deleteTriggerQuery(crsql_TableInfo *tableInfo) {
       ) SELECT \
         %s,\
         %Q,\
-        1,\
+        2,\
         crsql_nextdbversion(),\
         crsql_increment_and_get_seq(),\
         NULL\
@@ -257,7 +248,7 @@ char *crsql_deleteTriggerQuery(crsql_TableInfo *tableInfo) {
       DELETE FROM \"%w__crsql_clock\" WHERE crsql_internal_sync_bit() = 0 AND %s AND __crsql_col_name != '__crsql_cl';\
       END; ",
       tableInfo->tblName, tableInfo->tblName, tableInfo->tblName, pkList,
-      pkOldList, DELETE_CID_SENTINEL, tableInfo->tblName, pkWhereList);
+      pkOldList, CL_CID_SENTINEL, tableInfo->tblName, pkWhereList);
 
   sqlite3_free(pkList);
   sqlite3_free(pkOldList);

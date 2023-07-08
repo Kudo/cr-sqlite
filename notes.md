@@ -19,6 +19,13 @@ clang: warning: using sysroot for 'MacOSX' but targeting 'iPhone' [-Wincompatibl
 
 https://stackoverflow.com/questions/823706/compiling-custom-sqlite-for-an-iphone-app
 https://github.com/swiftlyfalling/SQLiteLib
+=======
+# re-insert
+
+Test:
+
+- update that changes a pk to revive an old row
+- seq moved by 1 when the above case happens
 
 # Prepared read
 
