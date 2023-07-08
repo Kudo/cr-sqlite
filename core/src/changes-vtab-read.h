@@ -9,14 +9,15 @@ SQLITE_EXTENSION_INIT3
 
 char *crsql_changesQueryForTable(crsql_TableInfo *tableInfo);
 
-#define TBL 0
-#define PKS 1
-#define CID 2
-#define COL_VRSN 3
-#define DB_VRSN 4
-#define SITE_ID 5
-#define CHANGES_ROWID 6
-#define SEQ 7
+#define CLOCK_STMT_TBL 0
+#define CLOCK_STMT_PKS 1
+#define CLOCK_STMT_CID 2
+#define CLOCK_STMT_COL_VRSN 3
+#define CLOCK_STMT_DB_VRSN 4
+#define CLOCK_STMT_SITE_ID 5
+#define CLOCK_STMT_CHANGES_ROWID 6
+#define CLOCK_STMT_SEQ 7
+#define CLOCK_STMT_CAUSAL_LENGTH 8
 
 char *crsql_changesUnionQuery(crsql_TableInfo **tableInfos, int tableInfosLen,
                               const char *idxStr);

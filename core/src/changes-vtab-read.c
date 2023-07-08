@@ -5,6 +5,10 @@
 #include "consts.h"
 #include "util.h"
 
+static char *compareWithT2(const char *in) {
+  return sqlite3_mprintf("t1.\"%w\" = t2.\"%w\"", in, in);
+}
+
 /**
  * Construct the query to grab the changes made against
  * rows in a given table
@@ -14,20 +18,32 @@ char *crsql_changesQueryForTable(crsql_TableInfo *tableInfo) {
     return 0;
   }
 
+  char **pkNames = sqlite3_malloc(tableInfo->pksLen * sizeof(char *));
+  for (int i = 0; i < tableInfo->pksLen; ++i) {
+    pkNames[i] = tableInfo->pks[i].name;
+  }
+
+  char *pkWhereList =
+      crsql_join2(&compareWithT2, pkNames, tableInfo->pksLen, " AND ");
+
   char *zSql = sqlite3_mprintf(
       "SELECT\
       '%s' as tbl,\
       crsql_pack_columns(%z) as pks,\
-      __crsql_col_name as cid,\
-      __crsql_col_version as col_vrsn,\
-      __crsql_db_version as db_vrsn,\
-      __crsql_site_id as site_id,\
-      _rowid_,\
-      __crsql_seq as seq\
-    FROM \"%s__crsql_clock\"",
+      t1.__crsql_col_name as cid,\
+      t1.__crsql_col_version as col_vrsn,\
+      t1.__crsql_db_version as db_vrsn,\
+      t1.__crsql_site_id as site_id,\
+      t1._rowid_,\
+      t1.__crsql_seq as seq,\
+      t2.__crsql_col_version as cl\
+    FROM \"%w__crsql_clock\" as t1 JOIN \"%w__crsql_clock\" AS t2 ON %s AND t2.__crsql_col_name = '__crsql_cl'",
       tableInfo->tblName,
-      crsql_asIdentifierList(tableInfo->pks, tableInfo->pksLen, 0),
-      tableInfo->tblName);
+      crsql_asIdentifierList(tableInfo->pks, tableInfo->pksLen, "t1."),
+      tableInfo->tblName, tableInfo->tblName, pkWhereList);
+
+  sqlite3_free(pkNames);
+  sqlite3_free(pkWhereList);
 
   return zSql;
 }
@@ -74,8 +90,9 @@ char *crsql_changesUnionQuery(crsql_TableInfo **tableInfos, int tableInfosLen,
   sqlite3_free(unionsArr);
 
   // compose the final query
+  // get causal length
   return sqlite3_mprintf(
-      "SELECT tbl, pks, cid, col_vrsn, db_vrsn, site_id, _rowid_, seq FROM "
+      "SELECT tbl, pks, cid, col_vrsn, db_vrsn, site_id, _rowid_, seq, cl FROM "
       "(%z) "
       "%s",
       unionsStr, idxStr == 0 ? "" : idxStr);

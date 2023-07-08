@@ -30,8 +30,8 @@ static int changesConnect(sqlite3 *db, void *pAux, int argc,
       db,
       "CREATE TABLE x([table] TEXT NOT NULL, [pk] BLOB NOT NULL, [cid] TEXT "
       "NOT NULL, [val] ANY, [col_version] INTEGER NOT NULL, [db_version] "
-      "INTEGER "
-      "NOT NULL, [site_id] BLOB, [seq] HIDDEN INTEGER NOT NULL)");
+      "INTEGER NOT NULL, [site_id] BLOB, [causal_length] INTEGER NOT NULL, "
+      "[seq] HIDDEN INTEGER NOT NULL)");
   if (rc != SQLITE_OK) {
     *pzErr = sqlite3_mprintf("Could not define the table");
     return rc;
@@ -182,12 +182,15 @@ static int changesNext(sqlite3_vtab_cursor *cur) {
   }
 
   // todo: pChangesStmt should also pull rowid from the underlying clock tbls
-  const char *tbl = (const char *)sqlite3_column_text(pCur->pChangesStmt, TBL);
-  sqlite3_value *pks = sqlite3_column_value(pCur->pChangesStmt, PKS);
-  const char *cid = (const char *)sqlite3_column_text(pCur->pChangesStmt, CID);
-  sqlite3_int64 dbVersion = sqlite3_column_int64(pCur->pChangesStmt, DB_VRSN);
+  const char *tbl =
+      (const char *)sqlite3_column_text(pCur->pChangesStmt, CLOCK_STMT_TBL);
+  sqlite3_value *pks = sqlite3_column_value(pCur->pChangesStmt, CLOCK_STMT_PKS);
+  const char *cid =
+      (const char *)sqlite3_column_text(pCur->pChangesStmt, CLOCK_STMT_CID);
+  sqlite3_int64 dbVersion =
+      sqlite3_column_int64(pCur->pChangesStmt, CLOCK_STMT_DB_VRSN);
   sqlite3_int64 changesRowid =
-      sqlite3_column_int64(pCur->pChangesStmt, CHANGES_ROWID);
+      sqlite3_column_int64(pCur->pChangesStmt, CLOCK_STMT_CHANGES_ROWID);
   pCur->dbVersion = dbVersion;
 
   // get information required to calculate rowid slabs.
@@ -302,20 +305,14 @@ static int changesColumn(
       // we clean up the cursor on moving to the next result
       // so no need to tell sqlite to free these values.
     case CHANGES_SINCE_VTAB_TBL:
-      sqlite3_result_value(ctx, sqlite3_column_value(pCur->pChangesStmt, TBL));
+      sqlite3_result_value(
+          ctx, sqlite3_column_value(pCur->pChangesStmt, CLOCK_STMT_TBL));
       break;
     case CHANGES_SINCE_VTAB_PK:
-      sqlite3_result_value(ctx, sqlite3_column_value(pCur->pChangesStmt, PKS));
+      sqlite3_result_value(
+          ctx, sqlite3_column_value(pCur->pChangesStmt, CLOCK_STMT_PKS));
       break;
     case CHANGES_SINCE_VTAB_CVAL:
-      // pRowStmt is null if the event was a delete. i.e., there is no row
-      // data.
-      // TODO: there's an edge case here where we can end up replicating a
-      // bunch of nulls for a row that is deleted but has prior events
-      // proceeding the delete. So on row delete we should, in our delete
-      // trigger, go drop all state records for the row except the delete
-      // event. "all" is actually quite small given we only keep max 1
-      // record per col in a row. so this drop is feasible on delete.
       if (pCur->pRowStmt == 0) {
         sqlite3_result_null(ctx);
       } else {
@@ -328,29 +325,33 @@ static int changesColumn(
       } else if (pCur->rowType == ROW_TYPE_DELETE || pCur->pRowStmt == 0) {
         sqlite3_result_text(ctx, DELETE_CID_SENTINEL, -1, SQLITE_STATIC);
       } else {
-        sqlite3_result_value(ctx,
-                             sqlite3_column_value(pCur->pChangesStmt, CID));
+        sqlite3_result_value(
+            ctx, sqlite3_column_value(pCur->pChangesStmt, CLOCK_STMT_CID));
       }
       break;
     case CHANGES_SINCE_VTAB_COL_VRSN:
-      sqlite3_result_value(ctx,
-                           sqlite3_column_value(pCur->pChangesStmt, COL_VRSN));
+      sqlite3_result_value(
+          ctx, sqlite3_column_value(pCur->pChangesStmt, CLOCK_STMT_COL_VRSN));
       break;
     case CHANGES_SINCE_VTAB_DB_VRSN:
       sqlite3_result_int64(ctx, pCur->dbVersion);
       break;
     case CHANGES_SINCE_VTAB_SITE_ID:
-      if (sqlite3_column_type(pCur->pChangesStmt, SITE_ID) == SQLITE_NULL) {
+      if (sqlite3_column_type(pCur->pChangesStmt, CLOCK_STMT_SITE_ID) ==
+          SQLITE_NULL) {
         sqlite3_result_null(ctx);
         // sqlite3_result_blob(ctx, pCur->pTab->pExtData->siteId, SITE_ID_LEN,
         //                     SQLITE_STATIC);
       } else {
-        sqlite3_result_value(ctx,
-                             sqlite3_column_value(pCur->pChangesStmt, SITE_ID));
+        sqlite3_result_value(
+            ctx, sqlite3_column_value(pCur->pChangesStmt, CLOCK_STMT_SITE_ID));
       }
       break;
+    case CHANGES_SINCE_VTAB_CAUSAL_LENGTH:
+      break;
     case CHANGES_SINCE_VTAB_SEQ:
-      sqlite3_result_value(ctx, sqlite3_column_value(pCur->pChangesStmt, SEQ));
+      sqlite3_result_value(
+          ctx, sqlite3_column_value(pCur->pChangesStmt, CLOCK_STMT_SEQ));
       break;
     default:
       return SQLITE_ERROR;
@@ -407,7 +408,7 @@ static int changesFilter(sqlite3_vtab_cursor *pVtabCursor, int idxNum,
   sqlite3_free(zSql);
   if (rc != SQLITE_OK) {
     pTabBase->zErrMsg = sqlite3_mprintf(
-        "error preparing stmt to extract changes %s %s", sqlite3_errmsg(db));
+        "error preparing stmt to extract changes %s", sqlite3_errmsg(db));
     sqlite3_finalize(pStmt);
     return rc;
   }
@@ -478,6 +479,7 @@ static const char *getClockTblColName(int colIdx) {
     case CHANGES_SINCE_VTAB_CID:
       return "cid";
     case CHANGES_SINCE_VTAB_CVAL:
+    case CHANGES_SINCE_VTAB_CAUSAL_LENGTH:
       return 0;
     case CHANGES_SINCE_VTAB_COL_VRSN:
       return "col_vrsn";
